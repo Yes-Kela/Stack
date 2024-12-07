@@ -1,5 +1,6 @@
 #define MAXSIZE SIZE_MAX - 2
 #define SPOILED 0xDEADDED
+#define STACK_ASSERT(stk) StackAssert(stk, __FILE__, __func__, __LINE__)
 
 typedef double StackElem_t;
 typedef size_t StackSize_t;
@@ -25,7 +26,7 @@ Errors StackPush(Stack_t* stk, StackElem_t value);
 Errors StackPop(Stack_t* stk, StackElem_t* value);
 
 int StackVerify(const Stack_t* stk);
-void StackDump(const Stack_t* stk, const int errnum);
-int StackAssert(const Stack_t* stk);
+void StackDump(const Stack_t* stk, const int errnum, const char* file_name, const char* func_name, const int line);
+int StackAssert(const Stack_t* stk, const char* file_name, const char* func_name, const int line);
 
 Errors StackDestructor(Stack_t* stk);
