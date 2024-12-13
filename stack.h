@@ -35,14 +35,18 @@ enum Errors
     STACK_OVERFLOW        = 1 << 4,
     MEM_ALLOC_ERROR       = 1 << 5,
     MEM_REALLOC_ERROR     = 1 << 6,
-    EMPTY_STACK           = 1 << 7
+    EMPTY_STACK           = 1 << 7,
+    LEFT_CANARY_DIED      = 1 << 8,
+    RIGHT_CANARY_DIED     = 1 << 9,
+    ATTACK_FROM_THE_LEFT  = 1 << 10,
+    ATTACK_FROM_THE_RIGHT = 1 << 11
 };
 
 Errors StackConstructor(Stack_t* stk, StackSize_t capacity);
 Errors StackPush(Stack_t* stk, StackElem_t value);
 Errors StackPop(Stack_t* stk, StackElem_t* value);
 Errors StackDestructor(Stack_t* stk);
-StackSize_t StackRealSizeInChar(const Stack_t* stk);
+StackSize_t StackRealSize(const Stack_t* stk);
 StackSize_t StackRealCapacity(const Stack_t* stk);
 
 int StackVerify(const Stack_t* stk);
