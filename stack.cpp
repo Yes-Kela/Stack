@@ -15,31 +15,30 @@ static const char* ErrorNames[] =
     "Stack Overflow"
 };
 
-// i want functions to return error codes, but must they be Errors-types?
-// the problem is mixing the error codes that show real errors and codes from particular functions
-// make new enum-constants for errors that show how correct the function works?
-
 Errors StackConstructor(Stack_t* stk, StackSize_t capacity)
 {
-    //STACK_ASSERT(stk);                                           // actually, bad: the data pointer is null before StackCtor
     if (stk == NULL)
     {
         fprintf(stderr, "StackConstructor is failed\n");
-        assert(NULL);
+        return STACK_BAD_PTR;
     }
 
     stk->data = (StackElem_t*) calloc((size_t)capacity, sizeof(StackElem_t));
+    if (stk->data == NULL)
+    {
+        return MEM_ALLOC_ERROR;
+    }
     stk->size = 0;
     stk->capacity = capacity;
 
-    STACK_ASSERT(stk);
-    return STACK_IS_OKAY;                      // what must Ctor return?
+    STACK_ASSERT_END(stk);
+    return STACK_CTOR_SUCCESS;
 }
+
 
 Errors StackPush(Stack_t* stk, StackElem_t value)
 {
-    STACK_ASSERT(stk);
-    StackDump(stk, 0, __FILE__, __func__, __LINE__);
+    STACK_ASSERT_START(stk);
 
     if (stk->size >= stk->capacity)
     {
@@ -49,38 +48,51 @@ Errors StackPush(Stack_t* stk, StackElem_t value)
             return DATA_BAD_PTR;
         }
         stk->data = (StackElem_t*) realloc(stk->data, (size_t)stk->capacity * sizeof(StackElem_t));
+        if (stk->data == NULL)
+        {
+            return MEM_REALLOC_ERROR;
+        }
     }
 
     stk->data[stk->size] = value;
     (stk->size)++;
 
-    STACK_ASSERT(stk);
-    StackDump(stk, 0, __FILE__, __func__, __LINE__);
+    STACK_ASSERT_END(stk);
 
-
-    return STACK_IS_OKAY;                        // what must Push return?
+    return STACK_PUSH_SUCCESS;
 }
 
 Errors StackPop(Stack_t* stk, StackElem_t* value)
 {
-    STACK_ASSERT(stk);
+    STACK_ASSERT_START(stk);
+
+    if (stk->size == 0)
+    {
+        return EMPTY_STACK;
+    }
+    if (stk->size >= MAXSIZE)
+    {
+        return STACK_BAD_SIZE;
+    }
 
     (stk->size)--;
     *value = stk->data[stk->size];
     stk->data[stk->size] = SPOILED;
 
-    STACK_ASSERT(stk);
+    STACK_ASSERT_END(stk);
 
-    return STACK_IS_OKAY;                            // what must Rop return?
+    return STACK_POP_SUCCESS;
 }
 
 int StackVerify(const Stack_t* stk)
 {
+    // TODO check if all values before size are not spoiled, after - are spoiled
     int error = 0;
 
     if (stk == NULL)
     {
         error |= STACK_BAD_PTR;
+        return error;
     }
     if (stk->data == NULL)
     {
@@ -99,68 +111,109 @@ int StackVerify(const Stack_t* stk)
         error |= STACK_OVERFLOW;
     }
 
+    /*
+    int spoiled_before = 0;
+    for (StackSize_t i = 0; i < stk->size; i++)
+    {
+        if (stk->data[i] == SPOILED)
+        {
+            spoiled_before = 1;
+            break;
+        }
+    }
+    for (StackSize_t i = 0; i < stk->size; i++)
+    {
+        if (stk->data[i] != SPOILED)
+        {
+
+        }
+    }
+    */
+
     return error;
 }
 
-void StackDump(const Stack_t* stk, const int errnum, const char* file_name, const char* func_name, const int line)
+void StackDump(const Stack_t* stk, const int errnum, const char* file_name, const char* func_name, const int line, const char* mode)
 {
     fprintf(stderr, "called from %s: %s(): %d\n", file_name, func_name, line);
-    fprintf(stderr, "%s\n", ErrorNames[errnum]);
-    fprintf(stderr, "stk [%p]\n", stk);
-    if (stk == NULL)
+
+    for (size_t position = 0; position < 8 * sizeof(int); position++)
     {
-        fprintf(stderr, "%s\n", ErrorNames[STACK_BAD_PTR]);
+        int cur_error = errnum & (1 << position);
+        if (cur_error != 0)
+        {
+                fprintf(stderr, "%s\n", ErrorNames[errnum]);
+        }
     }
-    else
+
+    if (errnum == 0 && !strcmp(mode, "beginning"))
+    {
+        fprintf(stderr, "%s successfully started\n", func_name);
+    }
+    else if (errnum == 0 && !strcmp(mode, "ending"))
+    {
+        fprintf(stderr, "%s successfully done\n", func_name);
+    }
+
+    fprintf(stderr, "stk [%p]\n", stk);
+    if (stk != NULL)
     {
         fprintf(stderr, "size     = %u\n", stk->size);
         fprintf(stderr, "capacity = %u\n", stk->capacity);
-        fprintf(stderr, "data [%p] =  \n{\n", stk->data);
-        if (stk->data == NULL && !strcmp(file_name, "StackConstructor"))           // but if the calling in the end of StackCtor?
+        fprintf(stderr, "data [%p] ", stk->data);
+        if (stk->data != NULL)
         {
-            fprintf(stderr, "   %s\n", ErrorNames[DATA_BAD_PTR]);
-        }
-        else if (stk->data == NULL)
-        {
-            fprintf(stderr, "   StackConstructor() is working now\n");
+            fprintf(stderr, "=  \n{\n");
+            for (StackSize_t i = 0; i < stk->capacity; i++)
+            {
+                fprintf(stderr, "   *[%u] = %g\n", i, stk->data[i]);            // TODO to use canaries, have to make data - char* and use memcpy for all functions for stack usage; then can use canaries with type that you want
+            }
         }
         else
         {
-            for (StackSize_t i = 0; i < stk->capacity; i++)
-            {
-                fprintf(stderr, "   *[%u] = %g\n", i, stk->data[i]);
-            }
+            fprintf(stderr, "\n");
         }
-        fprintf(stderr, "}\n");
+        fprintf(stderr, "}\n\n");
     }
 }
 
 Errors StackDestructor(Stack_t* stk)
 {
-    STACK_ASSERT(stk);
+    STACK_ASSERT_START(stk);
 
     free(stk->data);
     stk->size = MAXSIZE;
     stk->capacity = MAXSIZE;
     stk->data = NULL;
 
-    return STACK_IS_OKAY;                   // what Dtor must return?
+    fprintf(stderr, "called from %s: %s(): %d\n", __FILE__, __func__, __LINE__);
+    fprintf(stderr, "%s successfully done\n", __func__);
+    fprintf(stderr, "stk [%p]\n", stk);
+    if (stk == NULL)
+    {
+        fprintf(stderr, "%s\n\n", ErrorNames[STACK_BAD_PTR]);
+    }
+    else
+    {
+        fprintf(stderr, "size     = %u\n", stk->size);
+        fprintf(stderr, "capacity = %u\n", stk->capacity);
+        fprintf(stderr, "data [%p] \n", stk->data);
+    }
+
+    return STACK_DTOR_SUCCESS;
 }
 
-int StackAssert(const Stack_t* stk, const char* file_name, const char* func_name, const int line)
+int StackAssert(const Stack_t* stk, const char* file_name, const char* func_name, const int line, const char* mode)
 {
-    int verify = StackVerify(stk);
-    if (verify != 0)
-    {
-        for (size_t position = 0; position < 8 * sizeof(int); position++)
-        {
-            int cur_error = verify & (1 << position);
-            if (cur_error != 0)
-            {
-                StackDump(stk, cur_error, file_name, func_name, line);
-            }
-            assert(NULL);
-        }
-    }
-    return verify;                          // what Assert must return?
+    int errnum = StackVerify(stk);
+    StackDump(stk, errnum, file_name, func_name, line, mode);
+
+    return errnum;
 }
+
+/*
+StackSize_t StackGetSize(const Stack_t* stk)
+{
+    return (stk->size) - 1;
+}
+*/

@@ -1,0 +1,221 @@
+#include <stdio.h>
+#include <stdint.h>
+#include <assert.h>
+#include <stdlib.h>                             // split into files: cpp and headers
+
+#define MAXSIZE SIZE_MAX - 2
+#define SPOILED 0xDI5AB1ED
+
+typedef double StackElem_t;
+typedef size_t StackSize_t;
+typedef struct
+{
+    StackElem_t* data;
+    StackSize_t size;
+    StackSize_t capacity;
+} Stack_t;
+
+enum Errors
+{
+    STACK_IS_OKAY     = 1 << 0,                  // ???
+    STACK_BAD_PTR     = 1 << 1,
+    DATA_BAD_PTR      = 1 << 2,
+    STACK_BAD_SIZE    = 1 << 3,
+    STACK_BAD_CAP     = 1 << 4,
+    STACK_OVERFLOW    = 1 << 5
+};
+
+static const char* ErrorNames[] =
+{
+    "Stack is okay",
+    "NULL pointer to stack",
+    "NULL pointer to data",
+    "Stack size is incorrect",
+    "Stack capacity is incorrect",
+    "Stack Overflow"
+};
+
+Errors StackConstructor(Stack_t* stk, StackSize_t capacity);
+Errors StackPush(Stack_t* stk, StackElem_t value);
+Errors StackPop(Stack_t* stk, StackElem_t* value);
+
+Errors StackVerify(const Stack_t* stk);
+void StackDump(const Stack_t* stk, const int errnum);
+Errors StackAssert(const Stack_t* stk);
+
+Errors StackDestructor(Stack_t* stk);
+
+int main(void)
+{
+    Stack_t stk = {};
+    StackSize_t capacity = 5;
+
+    StackConstructor(&stk, capacity);
+    fprintf(stdout, "StackConstructor: %d\n", StackAssert(&stk));
+
+    StackPush(&stk, 100);
+    fprintf(stdout, "StackPush: %d\n", StackAssert(&stk));
+
+    StackPush(&stk, 200);
+    fprintf(stdout, "StackPush: %d\n", StackAssert(&stk));
+
+    StackPush(&stk, 300);
+    fprintf(stdout, "StackPush: %d\n", StackAssert(&stk));
+
+    StackPush(&stk, 400);
+    fprintf(stdout, "StackPush: %d\n", StackAssert(&stk));
+
+    StackPush(&stk, 500);
+    fprintf("StackPush: %d\n", StackAssert(&stk));
+
+    StackPush(&stk, 600);
+    fprintf(stdout, "StackPush: %d\n", StackAssert(&stk));
+
+    StackElem_t value = 0;
+    StackPop(&stk, &value);
+    fprintf("StackPop: %d\n", StackAssert(&stk));
+    fprintf("value = %g\n", value);
+
+    StackPop(&stk, &value);
+    fprintf(stdout, "StackPop: %d\n", StackAssert(&stk));
+    fprintf(stdout, "value = %g\n", value);
+
+    StackPop(&stk, &value);
+    fprintf(stdout, "StackPop: %d\n", StackAssert(&stk));
+    fprintf(stdout, "value = %g\n", value);
+
+    StackDestructor(&stk);
+    //printf("StackDestructor: %d\n", StackAssert(&stk));
+
+    return 0;
+}
+
+Errors StackConstructor(Stack_t* stk, StackSize_t capacity)
+{
+    if (stk == NULL)
+        return STACK_BAD_PTR;
+
+    stk->data = (StackElem_t*) calloc((size_t)capacity, sizeof(StackElem_t));
+    stk->size = 0;
+    stk->capacity = capacity;
+
+    return StackAssert(stk);
+}
+
+Errors StackPush(Stack_t* stk, StackElem_t value)
+{
+    if (StackAssert(stk) != STACK_IS_OKAY)
+    {
+        return STACK_PUSH_FAILED;
+    }
+
+    if (stk->size >= stk->capacity)
+    {
+        stk->capacity *= 2;
+        if (stk->data == NULL)
+        {
+            return BAD_DATA_PTR;
+        }
+        stk->data = (StackElem_t*) realloc(stk->data, (size_t)stk->capacity * sizeof(StackElem_t));     //+ check error, а вдруг указатель нулевой?
+    }
+
+    stk->data[stk->size] = value;
+    (stk->size)++;
+
+    if (StackAssert(stk) != STACK_IS_OKAY)
+    {
+        return STACK_PUSH_FAILED;
+    }
+
+    return 0;
+}
+
+Errors StackPop(Stack_t* stk, StackElem_t* value)
+{
+    if (StackAssert(stk) != STACK_IS_OKAY)
+    {
+        return STACK_POP_FAILED;
+    }
+
+    (stk->size)--;
+    *value = stk->data[stk->size];
+    stk->data[stk->size] = SPOILED;                     //+ Make constant!!!
+
+    if (StackAssert(stk) != STACK_IS_OKAY)
+    {
+        return STACK_POP_FAILED;
+    }
+
+    return 0;
+}
+
+Errors StackVerify(const Stack_t* stk)                // Для нескольких  ошибок через побитовые операции
+{                                                  // И куда возвращать эти коды? В main()? Или в одну из функций?
+    int error = 0;
+
+    if (stk == NULL)
+    {
+        error |= STACK_BAD_PTR;                 // учитываем каждую ошибку - доделать
+    }
+    if (stk->data == NULL)
+    {
+        error |= DATA_BAD_PTR;
+    }
+    else if (stk->size > MAXSIZE)
+    {
+        error |= STACK_BAD_SIZE;
+    }
+    else if (stk->capacity > MAXSIZE)
+    {
+        error |= STACK_BAD_CAP;
+    }
+    else if (stk->capacity < stk->size)
+    {
+        error |= STACK_OVERFLOW;
+    }
+
+    return error;
+}
+
+void StackDump(const Stack_t* stk, const int errnum)                       // И куда печатать дамп? В файлик?
+{
+    fprintf(stderr, "%s\n", ErrorNames[errnum]);
+    if (errnum != STACK_IS_OKAY)                                                                            //+ into stderr!!
+    {
+        fprintf(stderr, "stk: %p\n", stk);
+        fprintf(stderr, "stk.size: %u\n", stk->size);
+        fprintf(stderr, "stk.capacity: %u\n", stk->capacity);
+        fprintf(stderr, "stk.data: %p\n", stk->data);
+        if (stk != NULL)
+        {
+            fprintf(stderr, " index      value\n");
+            for (StackSize_t i = 0; i < stk->capacity; i++)
+            {
+                fprintf(stderr, "%5u %10g\n", i, stk->data[i]);
+            }
+        }
+        fprintf(stderr, "\n\n");
+    }
+}
+
+Errors StackDestructor(Stack_t* stk)
+{
+    free(stk->data);
+    stk->size = MAXSIZE;
+    stk->capacity = MAXSIZE;
+    stk->data = NULL;
+
+    return 0;
+}
+
+Errors StackAssert(const Stack_t* stk)                    // Think about splitting returning error code and doing dump!
+{
+    int verify = StackVerify(stk);                        // need to split to errors
+    for (size_t i = 0; i < 8 * sizeof(int); i++)    
+    {
+        int cur_error = 0;
+        if (verify & )
+    }
+    StackDump(stk, verify);
+    return verify;
+}
