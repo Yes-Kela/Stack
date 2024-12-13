@@ -12,7 +12,10 @@ static const char* ErrorNames[] =
     "NULL pointer to data",
     "Stack size is incorrect",
     "Stack capacity is incorrect",
-    "Stack Overflow"
+    "Stack Overflow",
+    "Memory allocarion error",
+    "Memory reallocation error",
+    "Attempt to pop from empty stack"
 };
 
 Errors StackConstructor(Stack_t* stk, StackSize_t capacity)
@@ -23,7 +26,7 @@ Errors StackConstructor(Stack_t* stk, StackSize_t capacity)
         return STACK_BAD_PTR;
     }
 
-    stk->data = (StackElem_t*) calloc((size_t)capacity, sizeof(StackElem_t));
+    stk->data = (char*) calloc(capacity*sizeof(StackElem_t) + 2*sizeof(StackCanary_t), sizeof(char));
     if (stk->data == NULL)
     {
         return MEM_ALLOC_ERROR;
@@ -31,10 +34,16 @@ Errors StackConstructor(Stack_t* stk, StackSize_t capacity)
     stk->size = 0;
     stk->capacity = capacity;
 
+    //StackDump(stk, 0, __FILE__, __func__, __LINE__, "beginning");
+
+    StackCanary_t left_canary = LEFT_CANARY;
+    StackCanary_t right_canary = RIGHT_CANARY;
+    memcpy(stk->data, &left_canary, sizeof(StackCanary_t));
+    memcpy(stk->data + StackRealCapacity(stk), &right_canary, sizeof(StackCanary_t));
+
     STACK_ASSERT_END(stk);
     return STACK_CTOR_SUCCESS;
 }
-
 
 Errors StackPush(Stack_t* stk, StackElem_t value)
 {
@@ -47,14 +56,14 @@ Errors StackPush(Stack_t* stk, StackElem_t value)
         {
             return DATA_BAD_PTR;
         }
-        stk->data = (StackElem_t*) realloc(stk->data, (size_t)stk->capacity * sizeof(StackElem_t));
+        stk->data = (char*) realloc(stk->data, (size_t)stk->capacity * sizeof(StackElem_t) + 2*sizeof(StackCanary_t));
         if (stk->data == NULL)
         {
             return MEM_REALLOC_ERROR;
         }
     }
 
-    stk->data[stk->size] = value;
+    memcpy(stk->data + StackRealSizeInChar(stk), &value, sizeof(StackCanary_t));
     (stk->size)++;
 
     STACK_ASSERT_END(stk);
@@ -76,8 +85,9 @@ Errors StackPop(Stack_t* stk, StackElem_t* value)
     }
 
     (stk->size)--;
-    *value = stk->data[stk->size];
-    stk->data[stk->size] = SPOILED;
+    memcpy(value, stk->data + StackRealSizeInChar(stk), sizeof(StackElem_t));
+    StackElem_t spoiled = SPOILED;
+    memcpy(stk->data + StackRealSizeInChar(stk), &spoiled, sizeof(StackElem_t));
 
     STACK_ASSERT_END(stk);
 
@@ -164,10 +174,28 @@ void StackDump(const Stack_t* stk, const int errnum, const char* file_name, cons
         if (stk->data != NULL)
         {
             fprintf(stderr, "=  \n{\n");
+
+            StackCanary_t left_canary = 0;
+            memcpy(&left_canary, stk->data, sizeof(StackCanary_t));
+            fprintf(stderr, "   left_canary = 0x%lX\n", left_canary);
+
             for (StackSize_t i = 0; i < stk->capacity; i++)
             {
-                fprintf(stderr, "   *[%u] = %g\n", i, stk->data[i]);            // TODO to use canaries, have to make data - char* and use memcpy for all functions for stack usage; then can use canaries with type that you want
+                StackElem_t spoiled = 0;
+                memcpy(&spoiled, stk->data + sizeof(StackCanary_t) + i*sizeof(StackElem_t), sizeof(StackElem_t));
+                if ((StackElem_t) spoiled == (StackElem_t) SPOILED)
+                {
+                    fprintf(stderr, "   *[%u] = 0x%X\n", i, spoiled);
+                }
+                else
+                {
+                    fprintf(stderr, "   *[%u] = %u\n", i, stk->data[sizeof(StackCanary_t) + i*sizeof(StackElem_t)]);
+                }
             }
+
+            StackCanary_t right_canary = 0;
+            memcpy(&right_canary, stk->data + StackRealCapacity(stk), sizeof(StackCanary_t));
+            fprintf(stderr, "   right_canary = 0x%lX\n", right_canary);
         }
         else
         {
@@ -211,9 +239,12 @@ int StackAssert(const Stack_t* stk, const char* file_name, const char* func_name
     return errnum;
 }
 
-/*
-StackSize_t StackGetSize(const Stack_t* stk)
+StackSize_t StackRealSizeInChar(const Stack_t* stk)
 {
-    return (stk->size) - 1;
+    return 1*sizeof(StackCanary_t) + (stk->size)*sizeof(StackElem_t);
 }
-*/
+
+StackSize_t StackRealCapacity(const Stack_t* stk)
+{
+    return 1*sizeof(StackCanary_t) + (stk->capacity)*sizeof(StackCanary_t);
+}

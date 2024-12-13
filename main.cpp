@@ -20,7 +20,7 @@ int main(void)
 
     StackElem_t value = 0;
     StackPop(&stk, &value);
-    fprintf(stdout, "value = %g\n", value);
+    fprintf(stdout, "value = %u\n", value);
 
     StackDestructor(&stk);
 
