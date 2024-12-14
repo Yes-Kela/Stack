@@ -24,10 +24,14 @@ Errors StackConstructor(Stack_t* stk, StackSize_t capacity)
 {
     if (stk == NULL)
     {
-        fprintf(stderr, "StackConstructor is failed\n");
+        fprintf(stderr, "StackConstructor() is failed\n");
         return STACK_BAD_PTR;
     }
-
+    if (capacity >= MAXSIZE)
+    {
+        fprintf(stderr, "Incorrect capacity was passed to the StackConstructor()\n");
+        return STACK_BAD_CAP;
+    }
     stk->data = (char*) calloc(capacity*sizeof(StackElem_t) + 2*sizeof(StackCanary_t), sizeof(char));
     if (stk->data == NULL)
     {
@@ -43,13 +47,21 @@ Errors StackConstructor(Stack_t* stk, StackSize_t capacity)
     memcpy(stk->data, &left_canary, sizeof(StackCanary_t));
     memcpy(stk->data + StackRealCapacity(stk), &right_canary, sizeof(StackCanary_t));
 
-    STACK_ASSERT_END(stk);
+    int errnum = STACK_ASSERT_END(stk);
+    if (errnum != 0)
+    {
+        return STACK_CTOR_FAILED;
+    }
     return STACK_CTOR_SUCCESS;
 }
 
 Errors StackPush(Stack_t* stk, StackElem_t value)
 {
-    STACK_ASSERT_START(stk);
+    int errnum = STACK_ASSERT_START(stk);
+    if (errnum != 0)
+    {
+        return STACK_PUSH_FAILED;
+    }
 
     if (stk->size >= stk->capacity)
     {
@@ -68,14 +80,21 @@ Errors StackPush(Stack_t* stk, StackElem_t value)
     memcpy(stk->data + StackRealSize(stk), &value, sizeof(StackCanary_t));
     (stk->size)++;
 
-    STACK_ASSERT_END(stk);
-
+    errnum = STACK_ASSERT_END(stk);
+    if (errnum != 0)
+    {
+        return STACK_PUSH_FAILED;
+    }
     return STACK_PUSH_SUCCESS;
 }
 
 Errors StackPop(Stack_t* stk, StackElem_t* value)
 {
-    STACK_ASSERT_START(stk);
+    int errnum = STACK_ASSERT_START(stk);
+    if (errnum != 0)
+    {
+        return STACK_POP_FAILED;
+    }
 
     if (stk->size == 0)
     {
@@ -91,14 +110,17 @@ Errors StackPop(Stack_t* stk, StackElem_t* value)
     StackElem_t spoiled = SPOILED;
     memcpy(stk->data + StackRealSize(stk), &spoiled, sizeof(StackElem_t));
 
-    STACK_ASSERT_END(stk);
+    errnum = STACK_ASSERT_END(stk);
+    if (errnum != 0)
+    {
+        return STACK_POP_FAILED;
+    }
 
     return STACK_POP_SUCCESS;
 }
 
 int StackVerify(const Stack_t* stk)
 {
-    // TODO check if all values before size are not spoiled, after - are spoiled
     int error = 0;
 
     if (stk == NULL)
@@ -232,7 +254,11 @@ void StackDump(const Stack_t* stk, const int errnum, const char* file_name, cons
 
 Errors StackDestructor(Stack_t* stk)
 {
-    STACK_ASSERT_START(stk);
+    int errnum = STACK_ASSERT_START(stk);
+    if (errnum != 0)
+    {
+        return STACK_DTOR_FAILED;
+    }
 
     free(stk->data);
     stk->size = MAXSIZE;
@@ -240,7 +266,7 @@ Errors StackDestructor(Stack_t* stk)
     stk->data = NULL;
 
     fprintf(stderr, "called from %s: %s(): %d\n", __FILE__, __func__, __LINE__);
-    fprintf(stderr, "%s() successfully done\n", __func__);
+    //fprintf(stderr, "%s() successfully done\n", __func__);
     fprintf(stderr, "{\n    stk [%p]\n", stk);
     if (stk == NULL)
     {
@@ -275,4 +301,10 @@ StackSize_t StackRealSize(const Stack_t* stk)
 StackSize_t StackRealCapacity(const Stack_t* stk)
 {
     return 1*sizeof(StackCanary_t) + (stk->capacity)*sizeof(StackCanary_t);
+}
+
+void StackStop(Stack_t* stk, FILE* file)
+{
+    StackDestructor(stk);
+    fclose(file);
 }

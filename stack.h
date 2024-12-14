@@ -24,8 +24,6 @@ enum Errors
     STACK_CTOR_SUCCESS    = 0 << 0,
     STACK_PUSH_SUCCESS    = 0 << 0,
     STACK_POP_SUCCESS     = 0 << 0,
-    STACK_GETELEM_SUCCESS = 0 << 0,
-    STACK_GETSIZE_SUCCESS = 0 << 0,
     STACK_DTOR_SUCCESS    = 0 << 0,
 
     STACK_BAD_PTR         = 1 << 0,
@@ -39,7 +37,12 @@ enum Errors
     LEFT_CANARY_DIED      = 1 << 8,
     RIGHT_CANARY_DIED     = 1 << 9,
     ATTACK_FROM_THE_LEFT  = 1 << 10,
-    ATTACK_FROM_THE_RIGHT = 1 << 11
+    ATTACK_FROM_THE_RIGHT = 1 << 11,
+
+    STACK_CTOR_FAILED     = 1 << 12,
+    STACK_PUSH_FAILED     = 1 << 13,
+    STACK_POP_FAILED      = 1 << 14,
+    STACK_DTOR_FAILED     = 1 << 15
 };
 
 Errors StackConstructor(Stack_t* stk, StackSize_t capacity);
@@ -52,5 +55,6 @@ StackSize_t StackRealCapacity(const Stack_t* stk);
 int StackVerify(const Stack_t* stk);
 void StackDump(const Stack_t* stk, const int errnum, const char* file_name, const char* func_name, const int line, const char* mode);
 int StackAssert(const Stack_t* stk, const char* file_name, const char* func_name, const int line, const char* mode);
+void StackStop(Stack_t* stk, FILE* file);
 
 #endif /* STACK_H */
